@@ -1,8 +1,9 @@
 /*
  * ApplicationLayer.h
  *
- *  GB/T 27930 充电协议应用层头文件
- *  包含所有报文定义和数据结构
+ *  Created on: 2025-07-24
+ *  Author: 83923
+ *
  */
 
 #ifndef __APPLICATIONLAYER_H_

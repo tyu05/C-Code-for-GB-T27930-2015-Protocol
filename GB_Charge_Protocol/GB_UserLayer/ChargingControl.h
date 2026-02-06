@@ -1,8 +1,8 @@
 /*
  * ChargingControl.h
  *
- *  GB/T 27930 充电控制模块头文件
- *  实现BMS的充电控制逻辑
+ *  Created on: 2025-07-24
+ *  Author: 83923
  */
 
 #ifndef __CHARGINGCONTROL_H_

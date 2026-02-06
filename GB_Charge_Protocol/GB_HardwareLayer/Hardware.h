@@ -1,8 +1,8 @@
 /*
  * Hardware.h
  *
- *  Created on: 2025年7月24日
- *  Author: 杨燚帆
+ *  Created on: 2025-07-24
+ *  Author: 83923
  *
  */
 
@@ -12,8 +12,19 @@
 #include "stm32f10x.h"
 #include "ErrorHandling.h"
 
+/*缓冲区定义*/
+#define CAN_RX_BUFFER_SIZE  32
+
+static CAN_RxMessage_t can_rx_buffer[CAN_RX_BUFFER_SIZE];
+static volatile uint16_t can_rx_head = 0;
+static volatile uint16_t can_rx_tail = 0;
+
+/* 定时器接口 */
+static TIM_TypeDef* GB_Charging_TIMER = TIM2;
+static uint32_t timestamp = 0;
+
 //CAN1接收RX0中断使能
-//#define CAN_RX0_INT_ENABLE	1		//0,不使能;1,使能.
+#define CAN_RX0_INT_ENABLE	1		//0,不使能;1,使能.
 
 #define CANx 					CAN1
 #define CAN_CLK					RCC_APB1Periph_CAN1
@@ -45,7 +56,5 @@ CAN_StatusTypeDef Hardware_CAN_Receive(uint32_t *id, uint8_t *data, uint8_t *len
 void Hardware_Timer_Init(void);
 uint32_t Hardware_Get_Timestamp(void);
 
-/* 关闭辅助电源 */
-//void Hardware_Close_Auxiliary_Power(void);
 
 #endif /* GB_CHARGING_PROTOCOL_HARDWARE_HARDWARE_H_ */

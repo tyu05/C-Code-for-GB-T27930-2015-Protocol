@@ -1,8 +1,8 @@
 /*
  * ChargingControl.c
  *
- *  Created on: 2025Äê7ÔÂ24ÈÕ
- *  Author: Ñî D·«
+ *  Created on: 2025-07-24
+ *  Author: 83923
  */
 
 #include "ChargingControl.h"
