@@ -32,13 +32,13 @@ The project is organized into the following layers:
 ## How to Use / 使用方法
 
 Just change the Hardware Layer file and replace it with the MCU driver you are using.
-只需更改硬件层文件，并将其替换为您正在使用的MCU驱动程序。
+Note: CAN communication requires enabling interrupt reception.
+只需更改硬件层文件，并将其替换为您正在使用的MCU驱动程序。注意CAN通信需要开启中断接收。
 
 ## Acknowledgments / 致谢
 
 This project's transport layer implementation is based on the Open-SAE-J1939 repository. I extend my sincere gratitude to all contributors of the [Open-SAE-J1939](https://github.com/DanielMartensson/Open-SAE-J1939) repository for their valuable work.
 本项目的传输层实现参考了Open-SAE-J1939仓库的设计思想，向[Open-SAE-J1939](https://github.com/DanielMartensson/Open-SAE-J1939)仓库的所有贡献者表示诚挚的感谢。
-
 
 
 ## License / 许可证
