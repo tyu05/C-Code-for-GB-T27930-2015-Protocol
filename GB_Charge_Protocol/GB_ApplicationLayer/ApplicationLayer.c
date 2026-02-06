@@ -26,9 +26,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BHM(GBT_BHM_Data* bhm_data) {
     /* 发送单包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_Message(0x06, PGN_BHM, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 2);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BHM_FAILED, NULL, 0);
-		ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -51,16 +50,19 @@ Transport_StatusTypeDef ApplicationLayer_Read_CHM(GBT_CHM_Data* chm_data) {
 	if (status == TRANSPORT_STATUS_OK) {
         /* 检查PGN是否匹配 */
         if (pgn == PGN_CHM) 
-				{
-								/* 解析数据 */
-								chm_data->charger_version[0] = data[0];
-								chm_data->charger_version[1] = data[1];
-								chm_data->charger_version[2] = data[2];
-								return TRANSPORT_STATUS_OK;
-				}
+        {
+            /* 解析数据 */
+            chm_data->charger_version[0] = data[0];
+            chm_data->charger_version[1] = data[1];
+            chm_data->charger_version[2] = data[2];
+            return TRANSPORT_STATUS_OK;
+        }
         return TRANSPORT_STATUS_ERROR;
+    }else{
+        // 错误处理 - 其他读取错误
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
+        return status;
     }
-    return status;
 }
 
 /* 辨识报文函数 (BMS视角) */
@@ -97,9 +99,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BRM(GBT_BRM_Data* brm_data) {
     /* 发送多包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_Message(0x07, PGN_BRM, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 8);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BRM_FAILED, NULL, 0);
-				ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -124,7 +125,7 @@ Transport_StatusTypeDef ApplicationLayer_Read_CRM(GBT_CRM_Data* crm_data) {
 		{
             /* 解析数据 */
             crm_data->Recognitio_Result = data[0];
-						printf("%d\n",data[0]);
+            //printf("%d\n",data[0]);
             for(uint8_t i = 1;i<=4;i++)
 			{
 				crm_data->charger_serial[i] = data[i];
@@ -137,8 +138,11 @@ Transport_StatusTypeDef ApplicationLayer_Read_CRM(GBT_CRM_Data* crm_data) {
             return TRANSPORT_STATUS_OK;
         }
         return TRANSPORT_STATUS_ERROR;
+    }else{
+        // 错误处理 - 其他读取错误
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
+        return status;
     }
-    return status;
 }
 
 
@@ -170,9 +174,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BCP(GBT_BCP_Data* bcp_data) {
     /* 发送多包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_MultiPacket(0x07, PGN_BCP, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 13);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BCP_FAILED, NULL, 0);
-		ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -253,9 +256,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BRO(GBT_BRO_Data* bro_data) {
     /* 发送单包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_Message(0x04, PGN_BRO, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 1);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BRO_FAILED, NULL, 0);
-		ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -282,8 +284,11 @@ Transport_StatusTypeDef ApplicationLayer_Read_CRO(GBT_CRO_Data* cro_data) {
             return TRANSPORT_STATUS_OK;
         }
         return TRANSPORT_STATUS_ERROR;
+    }else{
+        // 错误处理 - 其他读取错误
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
+        return status;
     }
-    return status;
 }
 
 /* 充电阶段报文函数 (BMS视角) */
@@ -310,9 +315,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BCS(GBT_BCS_Data* bcs_data) {
     /* 发送多包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_MultiPacket(0x07, PGN_BCS, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 9);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BCS_FAILED, NULL, 0);
-				ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -336,9 +340,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BCL(GBT_BCL_Data* bcl_data) {
     /* 发送单包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_Message(0x06, PGN_BCL, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 5);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BCL_FAILED, NULL, 0);
-				ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -369,8 +372,11 @@ Transport_StatusTypeDef ApplicationLayer_Read_CCS(GBT_CCS_Data* ccs_data) {
             return TRANSPORT_STATUS_OK;
         }
         return TRANSPORT_STATUS_ERROR;
+    }else{
+        // 错误处理 - 其他读取错误
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
+        return status;
     }
-    return status;
 }
 
 /**
@@ -402,9 +408,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BSM(GBT_BSM_Data* bsm_data) {
     /* 发送单包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_Message(0x06, PGN_BSM, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 8);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BSM_FAILED, NULL, 0);
-				ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -427,9 +432,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BST(GBT_BST_Data* bst_data) {
     /* 发送多包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_MultiPacket(0x04, PGN_BST, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 7);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BST_FAILED, NULL, 0);
-				ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -458,8 +462,11 @@ Transport_StatusTypeDef ApplicationLayer_Read_CST(GBT_CST_Data* cst_data) {
             return TRANSPORT_STATUS_OK;
         }
         return TRANSPORT_STATUS_ERROR;
+    }else{
+        // 错误处理 - 其他读取错误
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
+        return status;
     }
-    return status;
 }
 
 /* 统计数据报文函数 (BMS视角) */
@@ -492,9 +499,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BSD(GBT_BSD_Data* bsd_data) {
     /* 发送多包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_MultiPacket(0x06, PGN_BSD, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 7);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BSD_FAILED, NULL, 0);
-				ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -527,8 +533,11 @@ Transport_StatusTypeDef ApplicationLayer_Read_CSD(GBT_CSD_Data* csd_data) {
             return TRANSPORT_STATUS_OK;
         }
         return TRANSPORT_STATUS_ERROR;
+    }else{
+        // 错误处理 - 其他读取错误
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
+        return status;
     }
-    return status;
 }
 
 /* 错误报文函数 (BMS视角) */
@@ -547,9 +556,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BEM(GBT_BEM_Data* bem_data) {
     /* 发送单包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_Message(0x02, PGN_BEM, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 4);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BEM_FAILED, NULL, 0);
-				ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -599,9 +607,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BMT(GBT_BMT_Data* bmt_data) {
     /* 发送多包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_MultiPacket(0x07, PGN_BMT, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 1 + bmt_data->temp_probes_count);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BMT_FAILED, NULL, 0);
-				ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;
@@ -628,9 +635,8 @@ Transport_StatusTypeDef ApplicationLayer_Send_BMV(GBT_BMV_Data* bmv_data) {
     /* 发送多包消息 */
     Transport_StatusTypeDef status = TransportLayer_Send_MultiPacket(0x07, PGN_BMV, CHARGER_ADDRESS, BMS_SOURCE_ADDRESS, data, 2 + bmv_data->total_cells * 2);
     if (status != TRANSPORT_STATUS_OK) {
-        // 错误处理
-        ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BMV_FAILED, NULL, 0);
-				ErrorHandling_Error_Handler();
+        // 错误处理 - 直接使用传输层状态码作为错误码
+        ErrorHandler_HandleError(ERROR_TYPE_HARDWARE, status);
         return status;
     }
     return TRANSPORT_STATUS_OK;

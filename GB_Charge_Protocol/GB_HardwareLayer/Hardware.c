@@ -1,15 +1,12 @@
 /*
  * CAN_Transmit_Receive.c
  *
- *  Created on: 2025.7.24
- *  Author: 83923
+ *  Created on: 2025年7月24日
+ *  Author: 
  *
  */
 
 #include "Hardware.h"
-
-/* CAN接口 */
-static CAN_TypeDef* GB_Charging_CAN = CAN1;
 
 /* 定时器接口 */
 static TIM_TypeDef* GB_Charging_TIMER = TIM2;
@@ -56,7 +53,7 @@ void Hardware_CAN_Init(void) {
 		BS = bit_segment
 		
 		本例中，设置CAN波特率为1Mbps		
-		CAN 波特率 = 36M / 4 / (1 + 4 + 4) / = 1 Mbps		
+		CAN 波特率 = 36M / 16 / (1 + 4 + 4) / = 250 Kbps		
 	*/
 	
 	CAN_InitStructure.CAN_BS1 = CAN_BS1_4tq;
@@ -107,9 +104,9 @@ CAN_StatusTypeDef Hardware_CAN_Transmit(uint32_t id, uint8_t *data, uint8_t len)
 
 /* CAN接收数据 */
 CAN_StatusTypeDef Hardware_CAN_Receive(uint32_t *id, uint8_t *data, uint8_t *len) {
-  CanRxMsg RxMessage;
-	if( CAN_MessagePending(CAN1,CAN_FIFO0)==0) return CAN_STATUS_BUSY;		//没有接收到数据,直接退出
+    CanRxMsg RxMessage;
 	CAN_Receive(CAN1, CAN_FIFO0, &RxMessage);
+	if(CAN_MessagePending(CAN1,CAN_FIFO0)==0) return CAN_STATUS_BUSY;		//没有接收到数据,直接退出
 	if (RxMessage.IDE == CAN_Id_Standard)
 	{
 		*id = RxMessage.StdId;
@@ -126,54 +123,7 @@ CAN_StatusTypeDef Hardware_CAN_Receive(uint32_t *id, uint8_t *data, uint8_t *len
 	return CAN_STATUS_OK;
 }
 
-/* CAN错误处理 */
-void Hardware_CAN_Error_Handler(void) {
-    uint8_t error_code = CAN_GetLastErrorCode(GB_Charging_CAN);
-    
-    switch (error_code) {
-        case CAN_ErrorCode_NoErr:
-            // 无错误
-            break;
-        case CAN_ErrorCode_StuffErr:
-            // 位填充错误
-            ErrorHandling_Report_Error(ERROR_TYPE_HARDWARE, ERROR_CODE_CAN_BUS_OFF, NULL, 0);
-					ErrorHandling_Error_Handler();
-            break;
-        case CAN_ErrorCode_FormErr:
-            // 格式错误
-            ErrorHandling_Report_Error(ERROR_TYPE_HARDWARE, ERROR_CODE_CAN_BUS_OFF, NULL, 0);
-					ErrorHandling_Error_Handler();
-            break;
-        case CAN_ErrorCode_ACKErr:
-            // 应答错误
-            ErrorHandling_Report_Error(ERROR_TYPE_HARDWARE, ERROR_CODE_CAN_BUS_OFF, NULL, 0);
-					ErrorHandling_Error_Handler();
-            break;
-        case CAN_ErrorCode_BitRecessiveErr:
-            // 位隐性错误
-            ErrorHandling_Report_Error(ERROR_TYPE_HARDWARE, ERROR_CODE_CAN_BUS_OFF, NULL, 0);
-					ErrorHandling_Error_Handler();
-            break;
-        case CAN_ErrorCode_BitDominantErr:
-            // 位显性错误
-            ErrorHandling_Report_Error(ERROR_TYPE_HARDWARE, ERROR_CODE_CAN_BUS_OFF, NULL, 0);
-					ErrorHandling_Error_Handler();
-            break;
-        case CAN_ErrorCode_CRCErr:
-            // CRC校验错误
-            ErrorHandling_Report_Error(ERROR_TYPE_HARDWARE, ERROR_CODE_CAN_BUS_OFF, NULL, 0);
-					ErrorHandling_Error_Handler();
-            break;
-        default:
-            // 未知错误
-            ErrorHandling_Report_Error(ERROR_TYPE_HARDWARE, ERROR_CODE_CAN_BUS_OFF, NULL, 0);
-					ErrorHandling_Error_Handler();
-            break;
-    }
-    
-    /* 清除错误标志 */
-    CAN_ClearFlag(GB_Charging_CAN, CAN_FLAG_EWG | CAN_FLAG_EPV | CAN_FLAG_BOF);
-}
+
 
 /* 定时器初始化 */
 void Hardware_Timer_Init(void) {
@@ -183,24 +133,24 @@ void Hardware_Timer_Init(void) {
     /* 使能通用定时器时钟 */
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
 		
-		/*定时器单元初始化*/
-		TIM_TimeBaseInitStructure.TIM_ClockDivision = TIM_CKD_DIV1;		//时钟分频因子选择为不分频，影响定时器时钟频率为72MHz
-		TIM_TimeBaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up;	//计数器模式选择为向上计数
-		TIM_TimeBaseInitStructure.TIM_Period = 1000 - 1; /* 1ms周期 (72MHz/72000 = 1kHz) */
-		TIM_TimeBaseInitStructure.TIM_Prescaler = 72 - 1; /* 72分频 (72MHz/72 = 1MHz) */
-		TIM_TimeBaseInitStructure.TIM_RepetitionCounter = 0;			//重复计数器，仅高级定时器有效
-		TIM_TimeBaseInit(TIM2, &TIM_TimeBaseInitStructure);				//将结构体参数赋值给TIM_TimeBaseInit函数初始化TIM2定时器单元	
-    
-    /* 使能更新中断 */
-		TIM_ClearFlag(TIM2, TIM_FLAG_Update);	
-    TIM_ITConfig(GB_Charging_TIMER, TIM_IT_Update, ENABLE);
-    
-		NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
-		NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;			//选择中断NVIC的TIM2通道
-		NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;			//指定NVIC线路使能
-		NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;	//指定NVIC线路的抢占优先级为2
-		NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;			//指定NVIC线路的响应优先级为1
-		NVIC_Init(&NVIC_InitStructure);								//将结构体参数赋值给NVIC_Init函数初始化NVIC寄存器
+	/*定时器单元初始化*/
+	TIM_TimeBaseInitStructure.TIM_ClockDivision = TIM_CKD_DIV1;		//时钟分频因子选择为不分频，影响定时器时钟频率为72MHz
+	TIM_TimeBaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up;	//计数器模式选择为向上计数
+	TIM_TimeBaseInitStructure.TIM_Period = 1000 - 1; 				// 1ms周期 (72MHz/72000 = 1kHz)
+	TIM_TimeBaseInitStructure.TIM_Prescaler = 72 - 1; 				// 72分频 (72MHz/72 = 1MHz) 
+	TIM_TimeBaseInitStructure.TIM_RepetitionCounter = 0;			//重复计数器，仅高级定时器有效
+	TIM_TimeBaseInit(TIM2, &TIM_TimeBaseInitStructure);				//将结构体参数赋值给TIM_TimeBaseInit函数初始化TIM2定时器单元	
+
+	/* 使能更新中断 */
+	TIM_ClearFlag(TIM2, TIM_FLAG_Update);	
+	TIM_ITConfig(GB_Charging_TIMER, TIM_IT_Update, ENABLE);
+
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+	NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;				//选择中断NVIC的TIM2通道
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;				//指定NVIC线路使能
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;	//指定NVIC线路的抢占优先级为2
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;			//指定NVIC线路的响应优先级为1
+	NVIC_Init(&NVIC_InitStructure);								//将结构体参数赋值给NVIC_Init函数初始化NVIC寄存器
 	
     /* 启动定时器 */
     TIM_Cmd(GB_Charging_TIMER, ENABLE);

@@ -1,9 +1,8 @@
 /*
  * ChargingControl.h
  *
- *  Created on: 2025.7.24
- *  Author: 83923
- * 
+ *  GB/T 27930 充电控制模块头文件
+ *  实现BMS的充电控制逻辑
  */
 
 #ifndef __CHARGINGCONTROL_H_
@@ -29,8 +28,6 @@ typedef enum {
 typedef struct {
     Charging_StageTypeDef current_stage;  /* 当前充电阶段 */
     bool charging_allowed;                /* 是否允许充电 */
-    uint32_t stage_timeout;               /* 阶段超时时间 (ms) */
-    uint32_t timestamp;                   /* 时间戳 */
 } Charging_ControlTypeDef;
 
 /* 充电参数结构体 */
@@ -71,19 +68,23 @@ typedef struct {
 extern Charging_ControlTypeDef charging_control;
 extern Charging_ParametersTypeDef charging_params;
 
-/* 函数声明 */
+/* 基本控制函数 */
 void ChargingControl_Init(void);
 Charging_StageTypeDef ChargingControl_Get_Charging_Stage(void);
 void ChargingControl_Set_Charging_Stage(Charging_StageTypeDef stage);
 void ChargingControl_Process(void);
 
-/* 时间获取函数 */
+/* 时间戳获取宏 */
 #define get_current_timestamp() Hardware_Get_Timestamp()
 
-/* 各阶段处理函数 */
+/* 充电阶段处理函数 */
 void ChargingControl_Handshake_Stage(void);
 void ChargingControl_Parameter_Stage(void);
 void ChargingControl_Charging_Stage(void);
 void ChargingControl_End_Stage(void);
+void ChargingControl_Update_Charging_Parameters(void);
+
+/* 模拟测试函数 */
+void ChargingControl_Simulate_BCS_From_CCS(void);
 
 #endif /* GB_USERLAYER_CHARGINGCONTROL_H_ */

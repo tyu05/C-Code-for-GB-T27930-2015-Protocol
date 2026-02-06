@@ -1,11 +1,10 @@
 /*
  * TransportLayer.c
  *
- * Created on: 2025.7.24
- * Author: 83923
+ *  Created on: 2025年7月24日
+ *  Author: 杨燚帆
  *
- * Based On Open_SAE_J1939
- * https://github.com/DanielMartensson/Open-SAE-J1939 
+ *  传输层实现，基于J1939协议栈实现消息收发和多包传输
  */
 
 #include "TransportLayer.h"
@@ -113,8 +112,6 @@ Transport_StatusTypeDef TransportLayer_Send_MultiPacket(uint8_t priority, uint32
 
     // 发送RTS(请求发送)报文 - 启动多包传输握手
     if (send_tp_cm(priority, da, sa, 0x10, len, packet_count, pgn) != TRANSPORT_STATUS_OK) {
-        ErrorHandling_Report_Error(ERROR_TYPE_TRANSPORT, ERROR_CODE_TP_TRANSMIT_FAILED, NULL, 0);
-		ErrorHandling_Error_Handler();
         return TRANSPORT_STATUS_ERROR;
     }
 
@@ -141,12 +138,10 @@ Transport_StatusTypeDef TransportLayer_Send_MultiPacket(uint8_t priority, uint32
 
     // 检查是否超时
     if ((Hardware_Get_Timestamp() - start_time) >= timeout) {
-        ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_TP_TIMEOUT, NULL, 0);
-		ErrorHandling_Error_Handler();
         return TRANSPORT_STATUS_TIMEOUT;
     }
 
-     // 发送数据包 - 按序号发送所有分包
+    // 发送数据包 - 按序号发送所有分包
     for (uint8_t i = 0; i < packet_count; i++) 
 	{
         uint8_t packet_data[TP_PACKET_DATA_SIZE];
@@ -158,8 +153,6 @@ Transport_StatusTypeDef TransportLayer_Send_MultiPacket(uint8_t priority, uint32
         }
         // 发送数据传输报文(DT)
         if (send_tp_dt(7, da, sa, i+1, packet_data, packet_len) != TRANSPORT_STATUS_OK) {
-            ErrorHandling_Report_Error(ERROR_TYPE_TRANSPORT, ERROR_CODE_TP_TRANSMIT_FAILED, NULL, 0);
-			ErrorHandling_Error_Handler();
             return TRANSPORT_STATUS_ERROR;
         }
     }
@@ -175,7 +168,7 @@ Transport_StatusTypeDef TransportLayer_Send_MultiPacket(uint8_t priority, uint32
             received_pgn = CAN_ID_TO_PGN(received_can_id);
             // 检查是否为END报文(控制字节0x13)
             if (received_pgn == PGN_TP_CM && received_data[0] == 0x13) 
-						{
+			{
                 return TRANSPORT_STATUS_OK; // 传输成功
             }
         }
@@ -183,14 +176,55 @@ Transport_StatusTypeDef TransportLayer_Send_MultiPacket(uint8_t priority, uint32
 
     // 超时处理
     if ((Hardware_Get_Timestamp() - start_time) >= timeout) {
-        ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_TP_TIMEOUT, NULL, 0);
-				ErrorHandling_Error_Handler();
         return TRANSPORT_STATUS_TIMEOUT;
     }
 
-    ErrorHandling_Report_Error(ERROR_TYPE_TRANSPORT, ERROR_CODE_TP_TRANSMIT_FAILED, NULL, 0);
-		ErrorHandling_Error_Handler();
     return TRANSPORT_STATUS_ERROR;
+}
+
+/* 发送连接管理报文 */
+/* RTS格式：
+ *   data[0] - 控制字节（RTS/CTS/EndOfMsgACK等）
+ *   data[1-2] - 总消息大小（低位在前）
+ *   data[3] - 数据包数量
+ *   data[4] - 保留位（0xFF）
+ *   data[5-7] - 打包消息的PGN（低位在前）
+ */
+static Transport_StatusTypeDef send_tp_cm(uint8_t priority, uint8_t da, uint8_t sa, uint8_t control_byte, uint16_t total_size, uint8_t packet_count, uint32_t pgn) {
+    
+    tp_cm_buffer[0] = control_byte;
+    tp_cm_buffer[1] = total_size & 0xFF;
+    tp_cm_buffer[2] = (total_size >> 8) & 0xFF;
+    tp_cm_buffer[3] = packet_count;
+    tp_cm_buffer[4] = 0xFF; // 保留字段
+    tp_cm_buffer[5] = 0x00;
+    tp_cm_buffer[6] = pgn;
+    tp_cm_buffer[7] = 0x00;
+    
+    // 构造CM报文的CAN ID
+    uint32_t cm_can_id = PGN_TO_CAN_ID(priority, PGN_TP_CM, da, sa);
+    
+    return (Transport_StatusTypeDef)Hardware_CAN_Transmit(cm_can_id, tp_cm_buffer, TP_PACKET_SIZE);
+}
+
+/* 发送数据传输报文 */
+static Transport_StatusTypeDef send_tp_dt(uint8_t priority, uint8_t da, uint8_t sa, uint8_t sequence, uint8_t *data, uint8_t len) {
+    
+    tp_dt_buffer[0] = sequence;
+	//从1开始存储
+    for (uint8_t i = 0; i < len; i++) {
+        tp_dt_buffer[i+1] = data[i];
+    }
+    
+    // 如果数据不足7字节，填充0xFF
+    for (uint8_t i = len + 1; i <= TP_PACKET_DATA_SIZE; i++) {
+        tp_dt_buffer[i] = 0xFF;
+    }
+    
+    // 构造DT报文的CAN ID
+    uint32_t dt_can_id = PGN_TO_CAN_ID(priority, PGN_TP_DT, da, sa);
+    
+    return (Transport_StatusTypeDef)Hardware_CAN_Transmit(dt_can_id, tp_dt_buffer, TP_PACKET_SIZE);
 }
 
 /*
@@ -232,8 +266,6 @@ Transport_StatusTypeDef TransportLayer_Receive_MultiPacket(uint8_t priority, uin
 
     // 检查是否超时
     if ((Hardware_Get_Timestamp() - start_time) >= timeout) {
-        ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_TP_TIMEOUT, NULL, 0);
-				ErrorHandling_Error_Handler();
         return TRANSPORT_STATUS_TIMEOUT;
     }
 
@@ -244,8 +276,6 @@ Transport_StatusTypeDef TransportLayer_Receive_MultiPacket(uint8_t priority, uin
 
     // 发送CTS(允许发送)报文 - 响应RTS请求
     if (send_tp_cm(priority, da, sa, 0x11, tp_data_len, packet_count, tp_pgn) != TRANSPORT_STATUS_OK) {
-        ErrorHandling_Report_Error(ERROR_TYPE_TRANSPORT, ERROR_CODE_TP_TRANSMIT_FAILED, NULL, 0);
-				ErrorHandling_Error_Handler();
         return TRANSPORT_STATUS_ERROR;
     }
 
@@ -276,8 +306,6 @@ Transport_StatusTypeDef TransportLayer_Receive_MultiPacket(uint8_t priority, uin
 
         // 检查是否超时
         if ((Hardware_Get_Timestamp() - start_time) >= timeout) {
-            ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_TP_TIMEOUT, NULL, 0);
-						ErrorHandling_Error_Handler();
             return TRANSPORT_STATUS_TIMEOUT;
         }
 
@@ -310,15 +338,11 @@ Transport_StatusTypeDef TransportLayer_Receive_MultiPacket(uint8_t priority, uin
 
     // 检查是否超时
     if ((Hardware_Get_Timestamp() - end_start_time) >= end_timeout) {
-        ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_TP_TIMEOUT, NULL, 0);
-		ErrorHandling_Error_Handler();
         return TRANSPORT_STATUS_TIMEOUT;
     }
 
     // 发送确认报文
     if (send_tp_cm(priority, da, sa, 0x13, tp_data_len, packet_count, tp_pgn) != TRANSPORT_STATUS_OK) {
-        ErrorHandling_Report_Error(ERROR_TYPE_TRANSPORT, ERROR_CODE_TP_TRANSMIT_FAILED, NULL, 0);
-		ErrorHandling_Error_Handler();
         return TRANSPORT_STATUS_ERROR;
     }
 
@@ -330,62 +354,4 @@ Transport_StatusTypeDef TransportLayer_Receive_MultiPacket(uint8_t priority, uin
     }
 
     return TRANSPORT_STATUS_OK;
-}
-
-/* 发送连接管理报文 */
-/* RTS格式：
- *   data[0] - 控制字节（RTS/CTS/EndOfMsgACK等）
- *   data[1-2] - 总消息大小（低位在前）
- *   data[3] - 数据包数量
- *   data[4] - 保留位（0xFF）
- *   data[5-7] - 打包消息的PGN（低位在前）
- */
-static Transport_StatusTypeDef send_tp_cm(uint8_t priority, uint8_t da, uint8_t sa, uint8_t control_byte, uint16_t total_size, uint8_t packet_count, uint32_t pgn) {
-    uint8_t data[TP_PACKET_SIZE];
-    
-    data[0] = control_byte;
-    data[1] = total_size & 0xFF;
-    data[2] = (total_size >> 8) & 0xFF;
-    data[3] = packet_count;
-    data[4] = 0xFF; // 保留字段
-    data[5] = 0x00;
-    data[6] = pgn;
-    data[7] = 0x00;
-    
-    // 构造CM报文的CAN ID
-    uint32_t cm_can_id = PGN_TO_CAN_ID(priority, PGN_TP_CM, da, sa);
-    
-    return (Transport_StatusTypeDef)Hardware_CAN_Transmit(cm_can_id, data, TP_PACKET_SIZE);
-}
-
-/* 发送数据传输报文 */
-static Transport_StatusTypeDef send_tp_dt(uint8_t priority, uint8_t da, uint8_t sa, uint8_t sequence, uint8_t *data, uint8_t len) {
-    uint8_t packet_data[TP_PACKET_SIZE];
-    
-    packet_data[0] = sequence;
-	//从1开始存储
-    for (uint8_t i = 0; i < len; i++) {
-        packet_data[i+1] = data[i];
-    }
-    
-    // 如果数据不足7字节，填充0xFF
-    for (uint8_t i = len + 1; i <= TP_PACKET_DATA_SIZE; i++) {
-        packet_data[i] = 0xFF;
-    }
-    
-    // 构造DT报文的CAN ID
-    uint32_t dt_can_id = PGN_TO_CAN_ID(priority, PGN_TP_DT, da, sa);
-    
-    return (Transport_StatusTypeDef)Hardware_CAN_Transmit(dt_can_id, packet_data, TP_PACKET_SIZE);
-}
-
-/* 传输层错误处理 */
-void TransportLayer_Error_Handler(void) {
-    // 传输层错误处理逻辑
-    // 可以在这里添加更详细的错误处理
-    Hardware_CAN_Error_Handler();
-    
-    // 报告传输层错误
-    ErrorHandling_Report_Error(ERROR_TYPE_TRANSPORT, ERROR_CODE_TP_TRANSMIT_FAILED, NULL, 0);
-	ErrorHandling_Error_Handler();
 }

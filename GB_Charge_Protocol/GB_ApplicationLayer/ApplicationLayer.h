@@ -1,9 +1,8 @@
 /*
  * ApplicationLayer.h
  *
- *  Created on: 2025.7.24
- *  Author: 83923
- * 
+ *  GB/T 27930 充电协议应用层头文件
+ *  包含所有报文定义和数据结构
  */
 
 #ifndef __APPLICATIONLAYER_H_
@@ -127,7 +126,7 @@ typedef struct {
   * PGN: 0x0002, 49字节, 由BMS发送(可以不多包发送)
   */
  typedef struct {
-    uint8_t bmsProVer[3];                 /* BMS协议版本 */
+    uint8_t bmsProVer[3];               /* BMS协议版本 */
     uint8_t batType;                    /* 电池类型 (03H:磷酸铁锂, 06H:三元锂) */
     uint16_t batRateCapacity;           /* 电池额定容量 (0.1Ah/bit) */
     uint16_t batRateVol;                /* 电池额定总电压 (0.1V/bit) */
@@ -158,7 +157,7 @@ typedef struct {
   * PGN: 0x0006, 13字节, 由BMS发送(必须多包发送)
   */
  typedef struct {
-    uint16_t batPermitChrgVolMax;       /* 电池单体最高允许充电电压 (0.01V/bit) */
+    uint16_t batPermitChrgVolMax;       /* 电池最高允许充电电压 (0.01V/bit) */
     uint16_t batPermitChrgCurMax;       /* 最高允许输出充电电流 (0.1A/bit, 偏移量-400A) */
     uint16_t batPowerMax;               /* 电池标称总能量 (0.1kWh/bit) */
     uint16_t batPermitTotalChrgVolMax;  /* 最高允许充电总电压 (0.1V/bit) */
@@ -238,7 +237,7 @@ typedef struct {
      uint16_t output_voltage;            /* 输出电压 (0.1V/bit) */
      uint16_t output_current;            /* 输出电流 (0.1A/bit, 偏移量-400A) */
      uint16_t total_charging_time;       /* 累计充电时间 (分钟) */
-     uint8_t charging_status : 2;            /* 充电允许状态 (0:暂停, 1:允许) */
+     uint8_t charging_status : 2;        /* 充电允许状态 (0:暂停, 1:允许) */
  } GBT_CCS_Data;
 
  /**
@@ -276,7 +275,7 @@ typedef struct {
  
  /**
   * @brief CST - 充电机停止充电报文
-  * PGN: 0x001A, 4字节, 由充电机发送
+  * PGN: 0x001A, 5字节, 由充电机发送
   */
  typedef struct {
     uint8_t Charger_stop_reason;        /* 充电机中止充电原因 */
@@ -384,6 +383,7 @@ Transport_StatusTypeDef ApplicationLayer_Read_CEM(GBT_CEM_Data* cem_data);
 /* 数据报文函数 (BMS视角) */
 Transport_StatusTypeDef ApplicationLayer_Send_BMT(GBT_BMT_Data* bmt_data);
 Transport_StatusTypeDef ApplicationLayer_Send_BMV(GBT_BMV_Data* bmv_data);
+
 
 
 #endif /* GB_APPLICATIONLAYER_H_ */

@@ -1,9 +1,8 @@
 /*
  * ChargingControl.c
  *
- * Created on: 2025.7.24
- * Author: 83923
- * 
+ *  Created on: 2025年7月24日
+ *  Author: 杨燚帆
  */
 
 #include "ChargingControl.h"
@@ -23,17 +22,15 @@ void ChargingControl_Init(void) {
     memset(&charging_control, 0, sizeof(Charging_ControlTypeDef));
     charging_control.current_stage = CHARGING_STAGE_HANDSHAKE;
     charging_control.charging_allowed = false;
-    charging_control.stage_timeout = 5000; // 默认5秒超时
-    charging_control.timestamp = 0;
     
     // 初始化参数结构体
     memset(&charging_params, 0, sizeof(Charging_ParametersTypeDef));
     
-    // 初始化错误处理模块
-    ErrorHandling_Init();
-    
     // 初始化硬件层定时器
     Hardware_Init();
+    
+    // 初始化报文发送间隔计数器
+    // 已清理未使用的定时器变量
 }
 
 /**
@@ -57,24 +54,19 @@ void ChargingControl_Set_Charging_Stage(Charging_StageTypeDef stage) {
  */
 void ChargingControl_Handshake_Stage(void) {
     Transport_StatusTypeDef status;
-    uint8_t handshake_stage_timer = 0;
-    // 初始化定时器
-    if (handshake_stage_timer == 0) {
-        handshake_stage_timer = Hardware_Get_Timestamp();
-    }
     
+	uint32_t chm_start_time = Hardware_Get_Timestamp();
+	
     // 先接收CHM报文直至接收到或者超时退出
     do {
         status = ApplicationLayer_Read_CHM(&charging_params.chm_data);
-        if (Hardware_Get_Timestamp() - handshake_stage_timer > 5000) { // 5秒超时
-            ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-						ErrorHandling_Error_Handler();
-            handshake_stage_timer = 0; // 重置定时器
+        if (Hardware_Get_Timestamp() - chm_start_time > 5000) { // 5秒超时
+            ErrorHandler_HandleError(ERROR_TYPE_COMMUNICATION, ERROR_CODE_COMM_CHM_TIMEOUT);
             return;
         }
     } while (status != TRANSPORT_STATUS_OK);
      
-		printf("接受到了CHM报文\n");
+	printf("接受到了CHM报文\n");
 	
     // BHM报文发送：阻塞式重发BHM直到收到CRM或超时，每次重发间隔250ms
     uint32_t bhm_start_time = Hardware_Get_Timestamp();
@@ -96,17 +88,13 @@ void ChargingControl_Handshake_Stage(void) {
         }
         
         // 检查5秒超时
-        if (Hardware_Get_Timestamp() - bhm_start_time > 10000) {
-            ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-						ErrorHandling_Error_Handler();
-            handshake_stage_timer = 0;
+        if (Hardware_Get_Timestamp() - bhm_start_time > 5000) {
+            ErrorHandler_HandleError(ERROR_TYPE_COMMUNICATION, ERROR_CODE_COMM_CRM_TIMEOUT);
             return;
         }
         
     } while (1);
     
-		printf("接受到了CRM报文\n");
-		
     // BRM报文发送：阻塞式重发BRM直到收到CRM或超时，每次重发间隔250ms
     uint32_t brm_start_time = Hardware_Get_Timestamp();
     uint32_t brm_last_send_time = 0;
@@ -118,9 +106,6 @@ void ChargingControl_Handshake_Stage(void) {
         if (current_time - brm_last_send_time >= 250 || brm_last_send_time == 0) {
             status = ApplicationLayer_Send_BRM(&charging_params.brm_data);
             if (status != TRANSPORT_STATUS_OK) {
-                ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-								ErrorHandling_Error_Handler();
-                handshake_stage_timer = 0;
                 return;
             }
             brm_last_send_time = current_time;
@@ -134,9 +119,7 @@ void ChargingControl_Handshake_Stage(void) {
         
         // 检查5秒超时
         if (Hardware_Get_Timestamp() - brm_start_time > 5000) {
-            ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-						ErrorHandling_Error_Handler();
-            handshake_stage_timer = 0;
+            ErrorHandler_HandleError(ERROR_TYPE_COMMUNICATION, ERROR_CODE_COMM_CRM_TIMEOUT);
             return;
         }
         
@@ -144,7 +127,6 @@ void ChargingControl_Handshake_Stage(void) {
     
     // 如果所有握手报文都成功发送和接收，进入参数配置阶段
     ChargingControl_Set_Charging_Stage(CHARGING_STAGE_PARAMETER);
-    handshake_stage_timer = 0; // 重置定时器
 }
 
 /**
@@ -164,7 +146,6 @@ void ChargingControl_Parameter_Stage(void) {
         if (current_time - bcp_last_send_time >= 500 || bcp_last_send_time == 0) {
             status = ApplicationLayer_Send_BCP(&charging_params.bcp_data);
             if (status != TRANSPORT_STATUS_OK) {
-                ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
                 return;
             }
             bcp_last_send_time = current_time;
@@ -181,8 +162,7 @@ void ChargingControl_Parameter_Stage(void) {
         
         // 检查5秒超时
         if (Hardware_Get_Timestamp() - bcp_start_time > 5000) {
-            ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-					  ErrorHandling_Error_Handler();
+            ErrorHandler_HandleError(ERROR_TYPE_COMMUNICATION, ERROR_CODE_COMM_CML_TIMEOUT);
             return;
         }
         
@@ -199,8 +179,6 @@ void ChargingControl_Parameter_Stage(void) {
         if (current_time - bro_last_send_time >= 250 || bro_last_send_time == 0) {
             status = ApplicationLayer_Send_BRO(&charging_params.bro_data);
             if (status != TRANSPORT_STATUS_OK) {
-                ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-								ErrorHandling_Error_Handler();
                 return;
             }
             bro_last_send_time = current_time;
@@ -214,7 +192,7 @@ void ChargingControl_Parameter_Stage(void) {
         
         // 检查5秒超时
         if (Hardware_Get_Timestamp() - bro_start_time > 5000) {
-            ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
+            ErrorHandler_HandleError(ERROR_TYPE_COMMUNICATION, ERROR_CODE_COMM_CRO_TIMEOUT);
             return;
         }
         
@@ -222,8 +200,6 @@ void ChargingControl_Parameter_Stage(void) {
 
     // 如果所有参数配置报文都成功发送和接收，进入充电阶段
     ChargingControl_Set_Charging_Stage(CHARGING_STAGE_CHARGING);
-
-
 }
 
 /**
@@ -249,8 +225,6 @@ void ChargingControl_Charging_Stage(void) {
             // 发送BCL报文
             status = ApplicationLayer_Send_BCL(&charging_params.bcl_data);
             if (status != TRANSPORT_STATUS_OK) {
-                ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-								ErrorHandling_Error_Handler();
                 return;
             }
             
@@ -267,6 +241,9 @@ void ChargingControl_Charging_Stage(void) {
         if (waiting_for_ccs) {
             status = ApplicationLayer_Read_CCS(&charging_params.ccs_data);
             if (status == TRANSPORT_STATUS_OK) {
+                // 收到CCS报文，更新BCS中的电压和电流测量值
+                ChargingControl_Simulate_BCS_From_CCS();
+                
                 sending_bsm_periodically = true;  // 开始周期性发送BSM报文
                 // 重置CCS等待状态，下次发送BCL时重新开始计时
                 waiting_for_ccs = false;
@@ -274,8 +251,7 @@ void ChargingControl_Charging_Stage(void) {
             
             // 检查1秒超时
             if (current_time - ccs_timeout_start > 1000) {
-                ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-                ErrorHandling_Error_Handler();
+                ErrorHandler_HandleError(ERROR_TYPE_COMMUNICATION, ERROR_CODE_COMM_CCS_TIMEOUT);
                 return;
             }
         }
@@ -285,8 +261,6 @@ void ChargingControl_Charging_Stage(void) {
             // 发送BCS报文
             status = ApplicationLayer_Send_BCS(&charging_params.bcs_data);
             if (status != TRANSPORT_STATUS_OK) {
-                ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-                ErrorHandling_Error_Handler();
                 return;
             }
             bcs_last_send_time = current_time;
@@ -298,9 +272,7 @@ void ChargingControl_Charging_Stage(void) {
                 // 发送BSM报文
                 status = ApplicationLayer_Send_BSM(&charging_params.bsm_data);
                 if (status != TRANSPORT_STATUS_OK) {
-                    ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-                    ErrorHandling_Error_Handler();
-                    //return;
+                    return;
                 }
                 bsm_last_send_time = current_time;
             }
@@ -329,8 +301,6 @@ void ChargingControl_Charging_Stage(void) {
                 
                 // 检查5秒超时
                 if (Hardware_Get_Timestamp() - bst_start_time > 5000) {
-                    ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-										ErrorHandling_Error_Handler();
                     return;
                 }
             } while (1);
@@ -345,8 +315,7 @@ void ChargingControl_Charging_Stage(void) {
                 
                 // 检查5秒超时
                 if (Hardware_Get_Timestamp() - cst_start_time > 5000) {
-                    ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-										ErrorHandling_Error_Handler();
+                    ErrorHandler_HandleError(ERROR_TYPE_COMMUNICATION,ERROR_CODE_COMM_CST_TIMEOUT);
                     return;
                 }
             } while (1);
@@ -366,28 +335,21 @@ void ChargingControl_End_Stage(void) {
     bool end_condition_met = false;
     
     // 结束阶段：阻塞式重发BSD报文，每250ms间隔，最多10次
-    uint32_t end_start_time = Hardware_Get_Timestamp();
     uint32_t bsd_last_send_time = 0;
     uint8_t bsd_send_count = 0;
     //uint8_t csd_receive_count = 0;
     
     while (bsd_send_count < 10) {
         uint32_t current_time = Hardware_Get_Timestamp();
-        
-        // 检查5秒总超时
-        if (current_time - end_start_time > 5000) {
-            ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-						ErrorHandling_Error_Handler();
-            return;
-        }
 
         // 首次发送或达到250ms间隔时重发BSD
         if (current_time - bsd_last_send_time >= 250 || bsd_last_send_time == 0) {
             status = ApplicationLayer_Send_BSD(&charging_params.bsd_data);
             if (status != TRANSPORT_STATUS_OK) {
-                ErrorHandling_Report_Error(ERROR_TYPE_APPLICATION, ERROR_CODE_APP_BSD_FAILED, NULL, 0);
-								ErrorHandling_Error_Handler();
+                return;
             } 
+            bsd_send_count++;
+            bsd_last_send_time = current_time;
         }
         
         // 检查是否收到CSD报文
@@ -400,8 +362,8 @@ void ChargingControl_End_Stage(void) {
 
     // 如果未满足结束条件（例如，达到最大发送次数但未收到足够CSD），则报告超时
     if (!end_condition_met) {
-        ErrorHandling_Report_Error(ERROR_TYPE_TIMEOUT, ERROR_CODE_COMM_TIMEOUT, NULL, 0);
-				ErrorHandling_Error_Handler();
+        ErrorHandler_HandleError(ERROR_TYPE_COMMUNICATION, ERROR_CODE_COMM_CSD_TIMEOUT);
+        return;
     }
 
     // 重置到握手阶段，准备下一次充电
@@ -409,38 +371,102 @@ void ChargingControl_End_Stage(void) {
 }
 
 /**
+ * @brief 模拟设置BCS中的充电电压测量值和电流测量值等于CCS中的对应值
+ * 此函数用于模拟测试，将BCS报文中的充电电压和电流测量值设置为CCS报文中的对应值
+ */
+void ChargingControl_Simulate_BCS_From_CCS(void) {
+    // 将BCS中的充电电压测量值设置为CCS中的输出电压值
+    charging_params.bcs_data.chrgVol = charging_params.ccs_data.output_voltage;
+    
+    // 将BCS中的充电电流测量值设置为CCS中的输出电流值
+    charging_params.bcs_data.chrgCur = charging_params.ccs_data.output_current;
+    
+    // 打印模拟设置的信息
+    printf("CCS电压为: %f V\n", (float)charging_params.ccs_data.output_voltage/10.0);
+    printf("CCS电流为: %f A\n", (float)charging_params.ccs_data.output_current/10.0 -400.0);
+}
+
+/**
+ * @brief 根据电池状态动态更新充电参数
+ * 此函数根据当前电池状态（SOC、温度等）动态调整充电电压、电流和模式
+ */
+void ChargingControl_Update_Charging_Parameters(void) {
+    // 根据电池SOC调整充电参数
+    uint8_t soc = charging_params.bcs_data.batSoc;
+    
+    // 根据SOC调整充电电流
+    if (soc < 30) {
+        // SOC较低时，使用较大电流
+        charging_params.bcl_data.charging_current_demand = 50; // 5A
+        charging_params.bcl_data.GBT_Charging_Mode = GBT_Charging_Mode_Constant_Current;
+    } else if (soc < 80) {
+        // SOC中等时，适当降低电流
+        charging_params.bcl_data.charging_current_demand = 30; // 3A
+        charging_params.bcl_data.GBT_Charging_Mode = GBT_Charging_Mode_Constant_Current;
+    } else {
+        // SOC较高时，切换到恒压模式
+        charging_params.bcl_data.GBT_Charging_Mode = GBT_Charging_Mode_Constant_Voltage;
+    }
+    
+    // 根据电池温度调整充电参数
+    uint8_t max_temp = charging_params.bsm_data.batTempMax;
+    
+    // 如果温度过高，降低充电电流
+    if (max_temp > 40) {
+        // 温度较高时，降低充电电流
+        charging_params.bcl_data.charging_current_demand = 
+            (charging_params.bcl_data.charging_current_demand * 80) / 100; // 降低到80%
+    }
+    
+    // 确保充电电压不超过最大允许值
+    if (charging_params.bcl_data.charging_voltage_demand > charging_params.bcp_data.batPermitChrgVolMax) {
+        charging_params.bcl_data.charging_voltage_demand = charging_params.bcp_data.batPermitChrgVolMax;
+    }
+    
+    // 确保充电电流不超过最大允许值
+    if (charging_params.bcl_data.charging_current_demand > charging_params.bcp_data.batPermitChrgCurMax) {
+        charging_params.bcl_data.charging_current_demand = charging_params.bcp_data.batPermitChrgCurMax;
+    }
+    
+    // 打印当前充电参数
+    printf("[BMS] 动态调整充电参数 - 电压: %d V, 电流: %d A, 模式: %d\n", 
+           charging_params.bcl_data.charging_voltage_demand,
+           charging_params.bcl_data.charging_current_demand,
+           charging_params.bcl_data.GBT_Charging_Mode);
+}
+
+
+/**
  * @brief 充电控制主处理函数
  * 实现即插即用的充电控制逻辑
  */
-void ChargingControl_Process(void) {  
-	if(ErrorHandling_Has_Error() == false)
-		{
-			// 检查当前充电阶段并调用相应的处理函数
-			switch (ChargingControl_Get_Charging_Stage()) {
-					case CHARGING_STAGE_HANDSHAKE:
-							printf("握手阶段开始\n");
-							ChargingControl_Handshake_Stage();
-							break;
-					
-					case CHARGING_STAGE_PARAMETER:
-							printf("参数配置阶段开始\n");
-							ChargingControl_Parameter_Stage();
-							break;
-					
-					case CHARGING_STAGE_CHARGING:
-							printf("充电阶段开始\n");
-							ChargingControl_Charging_Stage();
-							break;
-					
-					case CHARGING_STAGE_END:
-							printf("结束阶段开始\n");
-							ChargingControl_End_Stage();
-							break;
-					
-					default:
-							// 如果阶段状态异常，重置到握手阶段
-							//ChargingControl_Set_Charging_Stage(CHARGING_STAGE_HANDSHAKE);
-							break;
-			}
-		}
+void ChargingControl_Process(void) {
+    
+    // 检查当前充电阶段并调用相应的处理函数
+    switch (ChargingControl_Get_Charging_Stage()) {
+        case CHARGING_STAGE_HANDSHAKE:
+						printf("握手阶段开始\n");
+            ChargingControl_Handshake_Stage();
+            break;
+        
+        case CHARGING_STAGE_PARAMETER:
+						printf("参数配置阶段开始\n");
+            ChargingControl_Parameter_Stage();
+            break;
+        
+        case CHARGING_STAGE_CHARGING:
+						printf("充电阶段开始\n");
+            ChargingControl_Charging_Stage();
+            break;
+        
+        case CHARGING_STAGE_END:
+						printf("结束阶段开始\n");
+            ChargingControl_End_Stage();
+            break;
+        
+        default:
+            // 如果阶段状态异常，重置到握手阶段
+            //ChargingControl_Set_Charging_Stage(CHARGING_STAGE_HANDSHAKE);
+            break;
+    }
 }
